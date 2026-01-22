@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>户外滑雪 (Pure H5)</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #f0f8ff; /* AliceBlue for snow */
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            touch-action: none; /* Prevent browser zooming/scrolling */
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .header-panel {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .score-board {
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            backdrop-filter: blur(5px);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .controls-panel {
+            padding: 10px 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: auto; /* Enable clicks */
+        }
+
+        /* Virtual Buttons */
+        .btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.25);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            color: white;
+            font-size: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+            user-select: none;
+            transition: transform 0.1s, background 0.1s;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .btn:active, .btn.active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .btn-restart {
+            position: absolute;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            display: none; /* Hidden by default */
+        }
+        
+        .btn-restart.visible {
+            display: flex;
+        }
+
+        /* Game Over Screen */
+        .game-over-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px 50px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            display: none;
+            pointer-events: auto;
+            min-width: 250px;
+        }
+
+        .game-over-modal.active {
+            display: block;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .game-over-modal h2 {
+            margin: 0 0 10px;
+            color: #333;
+            font-size: 32px;
+        }
+
+        .game-over-modal .final-score {
+            font-size: 48px;
+            font-weight: bold;
+            color: #e74c3c;
+            margin: 10px 0 20px;
+        }
+
+        .game-over-modal .hint {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .restart-action-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            border-radius: 25px;
+            cursor: pointer;
+            width: 100%;
+            font-family: inherit;
+        }
+
+        @keyframes popIn {
+            from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        /* Mobile tweaks */
+        @media (max-width: 768px) {
+            .btn { width: 70px; height: 70px; font-size: 28px; }
+            .score-board { font-size: 20px; padding: 8px 16px; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="header-panel">
+            <div class="score-board">得分: <span id="scoreDisplay">0</span></div>
+        </div>
+
+        <div class="controls-panel" id="controlsPanel">
+            <div class="btn" id="leftBtn">⬅️</div>
+            <!-- Restart center btn (optional location) -->
+            <div class="btn btn-restart" id="centerRestartBtn">🔄</div>
+            <div class="btn" id="rightBtn">➡️</div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div class="game-over-modal" id="gameOverModal">
+        <h2>游戏结束</h2>
+        <div class="hint">撞到树了!</div>
+        <div class="final-score" id="finalScoreDisplay">0</div>
+        <button class="restart-action-btn" id="modalRestartBtn">重新开始</button>
+    </div>
+
+<script>
+/**
+ * Simple Pure H5 Skiing Game
+ * Uses HTML5 Canvas API
+ */
+
+// Configuration
+const CONFIG = {
+    playerSpeed: 300,        // Horizontal speed (pixels per second)
+    baseObjectSpeed: 200,    // Initial vertical scroll speed (pixels per second)
+    speedIncrRate: 5,        // Speed increase per second
+    maxSpeed: 800,           // Max vertical speed
+    spawnRate: 5.0,          // Objects per second (base)
+    treeWidth: 40,
+    treeHeight: 60,
+    playerWidth: 30,
+    playerHeight: 40
+};
+
+// Game State
+const state = {
+    isRunning: false,
+    isGameOver: false,
+    score: 0,
+    speed: CONFIG.baseObjectSpeed,
+    lastTime: 0,
+    objects: [], // Trees/Rocks
+    particles: [], // Snow trails/Crash effects
+    player: {
+        x: 0,
+        y: 150, // Fixed Y position from top
+        direction: 0 // -1 left, 1 right, 0 straight
+    },
+    inputs: {
+        left: false,
+        right: false
+    }
+};
+
+// DOM Elements
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreDisplay = document.getElementById('scoreDisplay');
+const gameOverModal = document.getElementById('gameOverModal');
+const finalScoreDisplay = document.getElementById('finalScoreDisplay');
+const centerRestartBtn = document.getElementById('centerRestartBtn');
+
+// System
+let animationFrameId;
+let width, height;
+
+// --- Initialization ---
+
+function init() {
+    resize();
+    window.addEventListener('resize', resize);
+    
+    // Input Handling
+    setupInputs();
+    
+    // Start Game Loop
+    resetGame();
+    requestAnimationFrame(gameLoop);
+}
+
+function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    
+    // Keep player centered after resize if game just started
+    if (!state.isRunning && state.score === 0) {
+        state.player.x = width / 2;
+    }
+}
+
+function resetGame() {
+    state.isRunning = true;
+    state.isGameOver = false;
+    state.score = 0;
+    state.speed = CONFIG.baseObjectSpeed;
+    state.objects = [];
+    state.particles = [];
+    state.player.x = width / 2;
+    state.player.direction = 0;
+    
+    // Input reset
+    state.inputs.left = false;
+    state.inputs.right = false;
+
+    // UI
+    scoreDisplay.innerText = "0";
+    gameOverModal.classList.remove('active');
+    centerRestartBtn.classList.remove('visible');
+    
+    state.lastTime = performance.now();
+}
+
+function gameOver() {
+    state.isRunning = false;
+    state.isGameOver = true;
+    
+    // UI
+    finalScoreDisplay.innerText = Math.floor(state.score);
+    gameOverModal.classList.add('active');
+    centerRestartBtn.classList.add('visible');
+}
+
+// --- Input Handling ---
+
+function setupInputs() {
+    // Keyboard
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'ArrowLeft') state.inputs.left = true;
+        if (e.code === 'ArrowRight') state.inputs.right = true;
+        if (e.code === 'Enter' && state.isGameOver) resetGame();
+    });
+    
+    window.addEventListener('keyup', (e) => {
+        if (e.code === 'ArrowLeft') state.inputs.left = false;
+        if (e.code === 'ArrowRight') state.inputs.right = false;
+    });
+
+    // Touch / Buttons
+    const leftBtn = document.getElementById('leftBtn');
+    const rightBtn = document.getElementById('rightBtn');
+    const modalRestartBtn = document.getElementById('modalRestartBtn');
+
+    const bindBtn = (elem, inputKey) => {
+        const start = (e) => { e.preventDefault(); state.inputs[inputKey] = true; elem.classList.add('active'); };
+        const end = (e) => { e.preventDefault(); state.inputs[inputKey] = false; elem.classList.remove('active'); };
+        
+        elem.addEventListener('mousedown', start);
+        elem.addEventListener('touchstart', start);
+        elem.addEventListener('mouseup', end);
+        elem.addEventListener('touchend', end);
+        elem.addEventListener('mouseleave', end);
+    };
+
+    bindBtn(leftBtn, 'left');
+    bindBtn(rightBtn, 'right');
+
+    const restartAction = (e) => {
+        e.preventDefault();
+        resetGame();
+    };
+
+    modalRestartBtn.addEventListener('click', restartAction);
+    modalRestartBtn.addEventListener('touchstart', restartAction);
+    centerRestartBtn.addEventListener('click', restartAction);
+    centerRestartBtn.addEventListener('touchstart', restartAction);
+}
+
+// --- Game Logic ---
+
+function update(dt) {
+    if (!state.isRunning) return;
+
+    // 1. Difficulty Scaling
+    if (state.speed < CONFIG.maxSpeed) {
+        state.speed += CONFIG.speedIncrRate * dt;
+    }
+    
+    // 2. Score
+    state.score += (state.speed * dt) / 10;
+    scoreDisplay.innerText = Math.floor(state.score);
+
+    // 3. Player Movement
+    const moveSpeed = CONFIG.playerSpeed * dt;
+    if (state.inputs.left) {
+        state.player.x -= moveSpeed;
+        state.player.direction = -1;
+    } else if (state.inputs.right) {
+        state.player.x += moveSpeed;
+        state.player.direction = 1;
+    } else {
+        state.player.direction = 0;
+    }
+
+    // Boundary Checks (Bounce/Stop)
+    if (state.player.x < 20) state.player.x = 20;
+    if (state.player.x > width - 20) state.player.x = width - 20;
+
+    // 4. Spawning Objects
+    // Spawn objects at bottom, they move up
+    // Wait, in a ski game, objects usually appear at the bottom and move up if we are skiing "down".
+    // 3D projection: objects appear at Vanishing Point (Horizon)? No, we are moving forward.
+    // 2D Top Down: We are at top, moving down. Map moves UP. New terrain appears at BOTTOM.
+    
+    const spawnChance = CONFIG.spawnRate * dt; // Simple random spawn
+    if (Math.random() < spawnChance) {
+        spawnObject();
+    }
+    
+    // Also, try to ensure at least some trees spawn
+    if (state.objects.length === 0 && Math.random() < 0.1) spawnObject();
+
+    // 5. Update Objects
+    const distanceMoved = state.speed * dt;
+    
+    for (let i = state.objects.length - 1; i >= 0; i--) {
+        const obj = state.objects[i];
+        obj.y -= distanceMoved; // Move UP the screen
+        
+        // Remove if off screen
+        if (obj.y < -100) {
+            state.objects.splice(i, 1);
+            continue;
+        }
+
+        // Collision Detection
+        // Simple AABB
+        // Player hitbox
+        const px = state.player.x - CONFIG.playerWidth / 2;
+        const py = state.player.y - CONFIG.playerHeight; // Feet are at y
+        const pw = CONFIG.playerWidth;
+        const ph = CONFIG.playerHeight;
+
+        // Tree hitbox (trunk)
+        const tx = obj.x - obj.width / 4; // Narrow trunk
+        const ty = obj.y - obj.height/2; 
+        const tw = obj.width / 2;
+        const th = obj.height/2; // Hit trace
+
+        if (rectIntersect(px, py, pw, ph, tx, ty, tw, th)) {
+            createCrashParticles(state.player.x, state.player.y);
+            gameOver();
+        }
+    }
+    
+    // 6. Trail Particles
+    if (state.isRunning && Math.random() < 0.3) {
+        state.particles.push({
+            x: state.player.x + (Math.random() * 10 - 5),
+            y: state.player.y,
+            life: 1.0,
+            type: 'trail'
+        });
+    }
+
+    // Update particles
+    for (let i = state.particles.length - 1; i >= 0; i--) {
+        const p = state.particles[i];
+        p.life -= dt;
+        p.y -= distanceMoved; // Trails move with the world
+        if (p.life <= 0) {
+            state.particles.splice(i, 1);
+        }
+    }
+}
+
+function spawnObject() {
+    const type = Math.random() < 0.8 ? 'tree' : 'rock'; // 80% trees
+    state.objects.push({
+        x: Math.random() * (width - 40) + 20,
+        y: height + 50, // Start below screen
+        type: type,
+        width: CONFIG.treeWidth,
+        height: CONFIG.treeHeight
+    });
+}
+
+function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
+    return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
+}
+
+function createCrashParticles(x, y) {
+    for (let i = 0; i < 20; i++) {
+        state.particles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 200,
+            vy: (Math.random() - 0.5) * 200,
+            life: 1.0,
+            color: 'white',
+            type: 'crash'
+        });
+    }
+}
+
+// --- Rendering ---
+
+function draw() {
+    // Clear
+    ctx.fillStyle = '#87CEEB'; // Sky/Snow base
+    // Gradient for snow
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#E0F7FA'); 
+    gradient.addColorStop(1, '#B2EBF2');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    // Grid lines for speed illusion (optional)
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    // Only logic to draw moving grid lines... maybe skipping for simplicity
+    
+    // Draw Particles (Trails)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    state.particles.forEach(p => {
+        if (p.type === 'trail') {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (p.type === 'crash') {
+            // Crash logic needs separate update for velocity
+            p.x += p.vx * 0.016; // Approx dt
+            p.y += p.vy * 0.016;
+            ctx.globalAlpha = p.life;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+    });
+
+    // Draw Objects
+    // Sort by Y so lower objects are drawn on top (pseudo 3D depth) - wait,
+    // In Top-Down, Y increases downwards. Lower Y = Higher up screen.
+    // Higher Y = Closer to bottom.
+    // Objects closer to bottom should be drawn LAST (on top) if we assume standard perspective.
+    // Actually, in this view, objects at 600 (bottom) are "closer" to camera than objects at 0 (top).
+    // So sort by Y ascending.
+    state.objects.sort((a, b) => a.y - b.y);
+
+    state.objects.forEach(obj => {
+        if (obj.type === 'tree') {
+            drawTree(ctx, obj.x, obj.y, obj.width, obj.height);
+        } else {
+            drawRock(ctx, obj.x, obj.y);
+        }
+    });
+
+    // Draw Player
+    if (state.isRunning) {
+        drawPlayer(ctx, state.player.x, state.player.y, state.player.direction);
+    } else if (state.isGameOver) {
+        // Draw crashed player
+        drawPlayerCrashed(ctx, state.player.x, state.player.y);
+    }
+}
+
+function drawTree(ctx, x, y, w, h) {
+    // Pine Tree
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, w/2, 5, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Trunk
+    ctx.fillStyle = '#5D4037';
+    ctx.fillRect(x - 4, y - 10, 8, 10);
+
+    // Leaves (Layers)
+    ctx.fillStyle = '#2E7D32';
+    // Bottom Tri
+    ctx.beginPath();
+    ctx.moveTo(x - w/2, y - 5);
+    ctx.lineTo(x + w/2, y - 5);
+    ctx.lineTo(x, y - h * 0.6);
+    ctx.fill();
+    // Top Tri
+    ctx.beginPath();
+    ctx.moveTo(x - w/3, y - h * 0.4);
+    ctx.lineTo(x + w/3, y - h * 0.4);
+    ctx.lineTo(x, y - h);
+    ctx.fill();
+    
+    // Snow on tree
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.moveTo(x, y - h);
+    ctx.lineTo(x - 5, y - h + 10);
+    ctx.lineTo(x + 5, y - h + 10);
+    ctx.fill();
+}
+
+function drawRock(ctx, x, y) {
+    ctx.fillStyle = '#9E9E9E';
+    ctx.beginPath();
+    ctx.arc(x, y - 5, 10, 0, Math.PI, true);
+    ctx.fill();
+}
+
+function drawPlayer(ctx, x, y, dir) {
+    // Simple Skier
+    ctx.save();
+    ctx.translate(x, y);
+    
+    // Rotate based on direction
+    const rotation = dir * 20 * (Math.PI / 180);
+    ctx.rotate(rotation);
+
+    // Skis
+    ctx.fillStyle = '#B71C1C';
+    ctx.fillRect(-10, -5, 5, 20); // Left Ski
+    ctx.fillRect(5, -5, 5, 20);  // Right Ski
+
+    // Body
+    ctx.fillStyle = '#1565C0'; // Blue suit
+    ctx.beginPath();
+    ctx.arc(0, -15, 8, 0, Math.PI * 2); // Head
+    ctx.fill();
+    
+    ctx.fillRect(-6, -10, 12, 10); // Torso
+
+    // Scarf
+    ctx.strokeStyle = '#FFEB3B';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, -10);
+    ctx.lineTo(8, -12); // Flying scarf
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function drawPlayerCrashed(ctx, x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI / 2); // Fallen over
+    
+    // Skis crossed
+    ctx.fillStyle = '#B71C1C';
+    ctx.save();
+    ctx.rotate(Math.PI / 4);
+    ctx.fillRect(-15, -2, 30, 4);
+    ctx.restore();
+    ctx.save();
+    ctx.rotate(-Math.PI / 4);
+    ctx.fillRect(-15, -2, 30, 4);
+    ctx.restore();
+
+    // Body
+    ctx.fillStyle = '#1565C0';
+    ctx.beginPath();
+    ctx.arc(10, 0, 8, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.restore();
+}
+
+function gameLoop(time) {
+    const dt = (time - state.lastTime) / 1000;
+    state.lastTime = time;
+
+    update(dt);
+    draw();
+
+    animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+// Start
+init();
+
+</script>
+</body>
+</html>
