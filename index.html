@@ -11,9 +11,9 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #f0f8ff; /* AliceBlue for snow */
+            background-color: #f0f8ff;
             font-family: 'Microsoft YaHei', Arial, sans-serif;
-            touch-action: none; /* Prevent browser zooming/scrolling */
+            touch-action: none;
         }
 
         #gameCanvas {
@@ -22,7 +22,7 @@
             height: 100%;
         }
 
-        /* UI Overlay */
+        /* UI层 */
         #ui-layer {
             position: absolute;
             top: 0;
@@ -58,10 +58,10 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            pointer-events: auto; /* Enable clicks */
+            pointer-events: auto;
         }
 
-        /* Virtual Buttons */
+        /* 虚拟按钮 */
         .btn {
             width: 80px;
             height: 80px;
@@ -90,14 +90,14 @@
             left: 50%;
             bottom: 30px;
             transform: translateX(-50%);
-            display: none; /* Hidden by default */
+            display: none;
         }
         
         .btn-restart.visible {
             display: flex;
         }
 
-        /* Game Over Screen */
+        /* 游戏结束界面 */
         .game-over-modal {
             position: absolute;
             top: 50%;
@@ -154,7 +154,7 @@
             to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
         }
 
-        /* Mobile tweaks */
+        /* 移动端适配 */
         @media (max-width: 768px) {
             .btn { width: 70px; height: 70px; font-size: 28px; }
             .score-board { font-size: 20px; padding: 8px 16px; }
@@ -172,13 +172,11 @@
 
         <div class="controls-panel" id="controlsPanel">
             <div class="btn" id="leftBtn">⬅️</div>
-            <!-- Restart center btn (optional location) -->
             <div class="btn btn-restart" id="centerRestartBtn">🔄</div>
             <div class="btn" id="rightBtn">➡️</div>
         </div>
     </div>
 
-    <!-- Game Over Modal -->
     <div class="game-over-modal" id="gameOverModal">
         <h2>游戏结束</h2>
         <div class="hint">撞到树了!</div>
@@ -187,45 +185,39 @@
     </div>
 
 <script>
-/**
- * Simple Pure H5 Skiing Game
- * Uses HTML5 Canvas API
- */
-
-// Configuration
+// 游戏配置
 const CONFIG = {
-    playerSpeed: 300,        // Horizontal speed (pixels per second)
-    baseObjectSpeed: 200,    // Initial vertical scroll speed (pixels per second)
-    speedIncrRate: 5,        // Speed increase per second
-    maxSpeed: 800,           // Max vertical speed
-    spawnRate: 5.0,          // Objects per second (base)
-    treeWidth: 40,
-    treeHeight: 60,
-    playerWidth: 30,
-    playerHeight: 40
+    playerSpeed: 300,           // 玩家移动速度
+    baseObjectSpeed: 200,       // 障碍物基础速度
+    speedIncrRate: 5,           // 速度增长率
+    maxSpeed: 800,              // 最大速度
+    spawnRate: 5.0,             // 障碍物生成频率
+    treeWidth: 40,              // 树木宽度
+    treeHeight: 60,             // 树木高度
+    playerWidth: 30,            // 玩家宽度
+    playerHeight: 40            // 玩家高度
 };
 
-// Game State
+// 游戏状态
 const state = {
-    isRunning: false,
-    isGameOver: false,
-    score: 0,
-    speed: CONFIG.baseObjectSpeed,
-    lastTime: 0,
-    objects: [], // Trees/Rocks
-    particles: [], // Snow trails/Crash effects
+    isRunning: false,           // 游戏是否运行中
+    isGameOver: false,          // 游戏是否结束
+    score: 0,                   // 当前得分
+    speed: CONFIG.baseObjectSpeed,  // 当前速度
+    lastTime: 0,                // 上一帧时间
+    objects: [],                // 障碍物数组
+    particles: [],              // 粒子效果数组
     player: {
-        x: 0,
-        y: 150, // Fixed Y position from top
-        direction: 0 // -1 left, 1 right, 0 straight
+        x: 0,                   // 玩家X坐标
+        y: 150,                 // 玩家Y坐标
+        direction: 0            // 玩家方向（-1左，0中，1右）
     },
     inputs: {
-        left: false,
-        right: false
+        left: false,            // 左键是否按下
+        right: false            // 右键是否按下
     }
 };
 
-// DOM Elements
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreDisplay = document.getElementById('scoreDisplay');
@@ -233,36 +225,34 @@ const gameOverModal = document.getElementById('gameOverModal');
 const finalScoreDisplay = document.getElementById('finalScoreDisplay');
 const centerRestartBtn = document.getElementById('centerRestartBtn');
 
-// System
-let animationFrameId;
-let width, height;
+let animationFrameId;  // 动画帧ID
+let width, height;     // 画布宽高
 
-// --- Initialization ---
-
+// 初始化游戏
 function init() {
     resize();
     window.addEventListener('resize', resize);
-    
-    // Input Handling
     setupInputs();
-    
-    // Start Game Loop
     resetGame();
     requestAnimationFrame(gameLoop);
 }
 
+// 调整画布大小
+// 调整画布大小
 function resize() {
     width = window.innerWidth;
     height = window.innerHeight;
     canvas.width = width;
     canvas.height = height;
     
-    // Keep player centered after resize if game just started
+    // 首次加载时居中玩家
     if (!state.isRunning && state.score === 0) {
         state.player.x = width / 2;
     }
 }
 
+// 重置游戏状态
+// 重置游戏状态
 function resetGame() {
     state.isRunning = true;
     state.isGameOver = false;
@@ -273,11 +263,9 @@ function resetGame() {
     state.player.x = width / 2;
     state.player.direction = 0;
     
-    // Input reset
     state.inputs.left = false;
     state.inputs.right = false;
 
-    // UI
     scoreDisplay.innerText = "0";
     gameOverModal.classList.remove('active');
     centerRestartBtn.classList.remove('visible');
@@ -285,20 +273,20 @@ function resetGame() {
     state.lastTime = performance.now();
 }
 
+// 游戏结束处理
+// 游戏结束处理
 function gameOver() {
     state.isRunning = false;
     state.isGameOver = true;
     
-    // UI
     finalScoreDisplay.innerText = Math.floor(state.score);
     gameOverModal.classList.add('active');
     centerRestartBtn.classList.add('visible');
 }
 
-// --- Input Handling ---
-
+// 设置输入控制
 function setupInputs() {
-    // Keyboard
+    // 键盘控制
     window.addEventListener('keydown', (e) => {
         if (e.code === 'ArrowLeft') state.inputs.left = true;
         if (e.code === 'ArrowRight') state.inputs.right = true;
@@ -310,11 +298,11 @@ function setupInputs() {
         if (e.code === 'ArrowRight') state.inputs.right = false;
     });
 
-    // Touch / Buttons
     const leftBtn = document.getElementById('leftBtn');
     const rightBtn = document.getElementById('rightBtn');
     const modalRestartBtn = document.getElementById('modalRestartBtn');
 
+    // 绑定按钮事件
     const bindBtn = (elem, inputKey) => {
         const start = (e) => { e.preventDefault(); state.inputs[inputKey] = true; elem.classList.add('active'); };
         const end = (e) => { e.preventDefault(); state.inputs[inputKey] = false; elem.classList.remove('active'); };
@@ -329,6 +317,7 @@ function setupInputs() {
     bindBtn(leftBtn, 'left');
     bindBtn(rightBtn, 'right');
 
+    // 重新开始按钮
     const restartAction = (e) => {
         e.preventDefault();
         resetGame();
@@ -340,21 +329,20 @@ function setupInputs() {
     centerRestartBtn.addEventListener('touchstart', restartAction);
 }
 
-// --- Game Logic ---
-
+// 更新游戏逻辑
 function update(dt) {
     if (!state.isRunning) return;
 
-    // 1. Difficulty Scaling
+    // 逐渐增加难度
     if (state.speed < CONFIG.maxSpeed) {
         state.speed += CONFIG.speedIncrRate * dt;
     }
     
-    // 2. Score
+    // 根据速度计算得分
     state.score += (state.speed * dt) / 10;
     scoreDisplay.innerText = Math.floor(state.score);
 
-    // 3. Player Movement
+    // 处理玩家移动
     const moveSpeed = CONFIG.playerSpeed * dt;
     if (state.inputs.left) {
         state.player.x -= moveSpeed;
@@ -366,58 +354,51 @@ function update(dt) {
         state.player.direction = 0;
     }
 
-    // Boundary Checks (Bounce/Stop)
+    // 限制玩家在屏幕内
     if (state.player.x < 20) state.player.x = 20;
     if (state.player.x > width - 20) state.player.x = width - 20;
 
-    // 4. Spawning Objects
-    // Spawn objects at bottom, they move up
-    // Wait, in a ski game, objects usually appear at the bottom and move up if we are skiing "down".
-    // 3D projection: objects appear at Vanishing Point (Horizon)? No, we are moving forward.
-    // 2D Top Down: We are at top, moving down. Map moves UP. New terrain appears at BOTTOM.
-    
-    const spawnChance = CONFIG.spawnRate * dt; // Simple random spawn
+    // 随机生成障碍物
+    const spawnChance = CONFIG.spawnRate * dt;
     if (Math.random() < spawnChance) {
         spawnObject();
     }
     
-    // Also, try to ensure at least some trees spawn
+    // 确保至少有一个障碍物
     if (state.objects.length === 0 && Math.random() < 0.1) spawnObject();
 
-    // 5. Update Objects
+    // 更新所有障碍物位置
     const distanceMoved = state.speed * dt;
     
     for (let i = state.objects.length - 1; i >= 0; i--) {
         const obj = state.objects[i];
-        obj.y -= distanceMoved; // Move UP the screen
+        obj.y -= distanceMoved;
         
-        // Remove if off screen
+        // 移除已经离开屏幕的障碍物
         if (obj.y < -100) {
             state.objects.splice(i, 1);
             continue;
         }
 
-        // Collision Detection
-        // Simple AABB
-        // Player hitbox
+        // 检测碰撞
         const px = state.player.x - CONFIG.playerWidth / 2;
-        const py = state.player.y - CONFIG.playerHeight; // Feet are at y
+        const py = state.player.y - CONFIG.playerHeight;
         const pw = CONFIG.playerWidth;
         const ph = CONFIG.playerHeight;
 
-        // Tree hitbox (trunk)
-        const tx = obj.x - obj.width / 4; // Narrow trunk
+        const tx = obj.x - obj.width / 4;
         const ty = obj.y - obj.height/2; 
         const tw = obj.width / 2;
-        const th = obj.height/2; // Hit trace
+        const th = obj.height/2;
 
+        // 如果发生碰撞，游戏结束
         if (rectIntersect(px, py, pw, ph, tx, ty, tw, th)) {
             createCrashParticles(state.player.x, state.player.y);
             gameOver();
         }
     }
     
-    // 6. Trail Particles
+    // 生成滑雪轨迹粒子
     if (state.isRunning && Math.random() < 0.3) {
         state.particles.push({
             x: state.player.x + (Math.random() * 10 - 5),
@@ -427,32 +408,35 @@ function update(dt) {
         });
     }
 
-    // Update particles
+    // 更新粒子效果
     for (let i = state.particles.length - 1; i >= 0; i--) {
         const p = state.particles[i];
         p.life -= dt;
-        p.y -= distanceMoved; // Trails move with the world
+        p.y -= distanceMoved;
         if (p.life <= 0) {
             state.particles.splice(i, 1);
         }
     }
 }
 
+// 生成新的障碍物
 function spawnObject() {
-    const type = Math.random() < 0.8 ? 'tree' : 'rock'; // 80% trees
+    const type = Math.random() < 0.8 ? 'tree' : 'rock';  // 80%概率生成树，20%生成石头
     state.objects.push({
         x: Math.random() * (width - 40) + 20,
-        y: height + 50, // Start below screen
+        y: height + 50,
         type: type,
         width: CONFIG.treeWidth,
         height: CONFIG.treeHeight
     });
 }
 
+// 矩形碰撞检测
 function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
     return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
 }
 
+// 创建碰撞爆炸粒子效果
 function createCrashParticles(x, y) {
     for (let i = 0; i < 20; i++) {
         state.particles.push({
@@ -467,24 +451,17 @@ function createCrashParticles(x, y) {
     }
 }
 
-// --- Rendering ---
-
+// 渲染游戏画面
 function draw() {
-    // Clear
-    ctx.fillStyle = '#87CEEB'; // Sky/Snow base
-    // Gradient for snow
+    // 绘制渐变背景
+    ctx.fillStyle = '#87CEEB';
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
     gradient.addColorStop(0, '#E0F7FA'); 
     gradient.addColorStop(1, '#B2EBF2');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
-    // Grid lines for speed illusion (optional)
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-    ctx.beginPath();
-    // Only logic to draw moving grid lines... maybe skipping for simplicity
-    
-    // Draw Particles (Trails)
+    // 绘制雪花轨迹粒子
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     state.particles.forEach(p => {
         if (p.type === 'trail') {
@@ -492,8 +469,8 @@ function draw() {
             ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
             ctx.fill();
         } else if (p.type === 'crash') {
-            // Crash logic needs separate update for velocity
-            p.x += p.vx * 0.016; // Approx dt
+            // 碰撞粒子带有速度
+            p.x += p.vx * 0.016;
             p.y += p.vy * 0.016;
             ctx.globalAlpha = p.life;
             ctx.beginPath();
@@ -503,15 +480,10 @@ function draw() {
         }
     });
 
-    // Draw Objects
-    // Sort by Y so lower objects are drawn on top (pseudo 3D depth) - wait,
-    // In Top-Down, Y increases downwards. Lower Y = Higher up screen.
-    // Higher Y = Closer to bottom.
-    // Objects closer to bottom should be drawn LAST (on top) if we assume standard perspective.
-    // Actually, in this view, objects at 600 (bottom) are "closer" to camera than objects at 0 (top).
-    // So sort by Y ascending.
+    // 按Y坐标排序，实现近大远小效果
     state.objects.sort((a, b) => a.y - b.y);
 
+    // 绘制所有障碍物
     state.objects.forEach(obj => {
         if (obj.type === 'tree') {
             drawTree(ctx, obj.x, obj.y, obj.width, obj.height);
@@ -520,43 +492,40 @@ function draw() {
         }
     });
 
-    // Draw Player
+    // 根据游戏状态绘制玩家
     if (state.isRunning) {
         drawPlayer(ctx, state.player.x, state.player.y, state.player.direction);
     } else if (state.isGameOver) {
-        // Draw crashed player
         drawPlayerCrashed(ctx, state.player.x, state.player.y);
     }
 }
 
+// 绘制树木障碍物
 function drawTree(ctx, x, y, w, h) {
-    // Pine Tree
-    // Shadow
+    // 绘制阴影
     ctx.fillStyle = 'rgba(0,0,0,0.1)';
     ctx.beginPath();
     ctx.ellipse(x, y, w/2, 5, 0, 0, Math.PI*2);
     ctx.fill();
 
-    // Trunk
+    // 绘制树干
     ctx.fillStyle = '#5D4037';
     ctx.fillRect(x - 4, y - 10, 8, 10);
 
-    // Leaves (Layers)
+    // 绘制树叶（两层三角形）
     ctx.fillStyle = '#2E7D32';
-    // Bottom Tri
     ctx.beginPath();
     ctx.moveTo(x - w/2, y - 5);
     ctx.lineTo(x + w/2, y - 5);
     ctx.lineTo(x, y - h * 0.6);
     ctx.fill();
-    // Top Tri
     ctx.beginPath();
     ctx.moveTo(x - w/3, y - h * 0.4);
     ctx.lineTo(x + w/3, y - h * 0.4);
     ctx.lineTo(x, y - h);
     ctx.fill();
     
-    // Snow on tree
+    // 绘制树顶积雪
     ctx.fillStyle = 'white';
     ctx.beginPath();
     ctx.moveTo(x, y - h);
@@ -565,6 +534,7 @@ function drawTree(ctx, x, y, w, h) {
     ctx.fill();
 }
 
+// 绘制石头障碍物
 function drawRock(ctx, x, y) {
     ctx.fillStyle = '#9E9E9E';
     ctx.beginPath();
@@ -572,45 +542,46 @@ function drawRock(ctx, x, y) {
     ctx.fill();
 }
 
+// 绘制正常滑雪的玩家
 function drawPlayer(ctx, x, y, dir) {
-    // Simple Skier
     ctx.save();
     ctx.translate(x, y);
     
-    // Rotate based on direction
+    // 根据移动方向旋转
     const rotation = dir * 20 * (Math.PI / 180);
     ctx.rotate(rotation);
 
-    // Skis
+    // 绘制滑雪板
     ctx.fillStyle = '#B71C1C';
-    ctx.fillRect(-10, -5, 5, 20); // Left Ski
-    ctx.fillRect(5, -5, 5, 20);  // Right Ski
+    ctx.fillRect(-10, -5, 5, 20);
+    ctx.fillRect(5, -5, 5, 20);
 
-    // Body
-    ctx.fillStyle = '#1565C0'; // Blue suit
+    // 绘制身体
+    ctx.fillStyle = '#1565C0';
     ctx.beginPath();
-    ctx.arc(0, -15, 8, 0, Math.PI * 2); // Head
+    ctx.arc(0, -15, 8, 0, Math.PI * 2);
     ctx.fill();
     
-    ctx.fillRect(-6, -10, 12, 10); // Torso
+    ctx.fillRect(-6, -10, 12, 10);
 
-    // Scarf
+    // 绘制围巾
     ctx.strokeStyle = '#FFEB3B';
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(0, -10);
-    ctx.lineTo(8, -12); // Flying scarf
+    ctx.lineTo(8, -12);
     ctx.stroke();
 
     ctx.restore();
 }
 
+// 绘制摔倒状态的玩家
 function drawPlayerCrashed(ctx, x, y) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(Math.PI / 2); // Fallen over
+    ctx.rotate(Math.PI / 2);  // 横向倒下
     
-    // Skis crossed
+    // 绘制交叉的滑雪板
     ctx.fillStyle = '#B71C1C';
     ctx.save();
     ctx.rotate(Math.PI / 4);
@@ -621,7 +592,7 @@ function drawPlayerCrashed(ctx, x, y) {
     ctx.fillRect(-15, -2, 30, 4);
     ctx.restore();
 
-    // Body
+    // 绘制倒地的身体
     ctx.fillStyle = '#1565C0';
     ctx.beginPath();
     ctx.arc(10, 0, 8, 0, Math.PI * 2);
@@ -630,17 +601,17 @@ function drawPlayerCrashed(ctx, x, y) {
     ctx.restore();
 }
 
+// 游戏主循环
 function gameLoop(time) {
-    const dt = (time - state.lastTime) / 1000;
+    const dt = (time - state.lastTime) / 1000;  // 计算时间差（秒）
     state.lastTime = time;
 
-    update(dt);
-    draw();
+    update(dt);  // 更新游戏逻辑
+    draw();      // 渲染画面
 
     animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// Start
 init();
 
 </script>
